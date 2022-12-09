@@ -1,4 +1,5 @@
-#include <ros/ros.h>
+#include <iostream>
+using namespace std;
 
 #include <opencv2/core.hpp>
 #include <opencv2/imgcodecs.hpp>
@@ -6,52 +7,28 @@
 #include <opencv2/highgui.hpp>
 using namespace cv;
 
-#define use_001_101 1
-#define use_002_010 2
-#define use_012_020 3
-#define dataset use_001_101
-//#define dataset use_002_010
-//#define dataset use_012_020
+// input images
+string dataset = "test";
+int const img_amount = 11;
 
-#if dataset == use_001_101
-#define dataset "001_101"
-int img_amount = 11;
-const char *imgs[] = { "001", "011", "021", "031", "041", "051",
-                       "061", "071", "081", "091", "101"};
-#elif dataset == use_002_010
-#define dataset "002_010"
-int img_amount = 9;
-const char *imgs[] = { "002", "003", "004", "005", "006", "007",
-                       "008", "009", "010"};
-#elif dataset == use_012_020
-#define dataset "012_020"
-int img_amount = 9;
-const char *imgs[] = { "012", "013", "014", "015", "016", "017",
-                       "018", "019", "020"};
-#endif
+bool ROI = false;
+int rois[4] = {0}; // lower_u, upper_u, lower_v, upper_v
 
-int track_amount = 0;
-std::vector<int> track_num;
+// output results
+bool save_result = true;
+string save_path = "results";
 
+// feature tracker
 struct Feature_Point{
     int id;
-    float u, v;
+    float u[img_amount], v[img_amount];
 };
-
-void reduceVector(std::vector<cv::Point2f> &v, std::vector<uchar> status)
-{
-    int j = 0;
-    for (int i = 0; i < int(v.size()); i++)
-        if (status[i])
-            v[j++] = v[i];
-    v.resize(j);
-}
+const int MAX_CORNERS = 500;
+Feature_Point fps[MAX_CORNERS]; // Feature PoitS
 
 cv::Mat prev_img, cur_img;
 std::vector<cv::Point2f> cornersA, cornersB;
-const int MAX_CORNERS = 500;
-Feature_Point fps[MAX_CORNERS];
-void opti_track_LK(const cv::Mat &_img)
+void opti_track_LK(const cv::Mat &_img, int frame_num)
 {
     cv::Mat img;
     img = _img;
@@ -83,6 +60,13 @@ void opti_track_LK(const cv::Mat &_img)
     for (int i = 0; i < static_cast<int>(cornersA.size()); ++i)
     {
         if (!status[i]) continue;
+        fps[i].u[frame_num] = cornersB[i].x;
+        fps[i].v[frame_num] = cornersB[i].y;
+
+        if (ROI)
+            if (cornersB[i].x < rois[0] || cornersB[i].x > rois[1] || cornersB[i].y < rois[2] || cornersB[i].y > rois[3])
+                continue;
+
         cv::circle(img_bgr, cornersB[i], 3, Scalar(0, 255, 0), -1);
         cv::line(img_bgr, cornersA[i], cornersB[i], cv::Scalar(0, 255, 0), 1);
 
@@ -90,23 +74,10 @@ void opti_track_LK(const cv::Mat &_img)
         else posi++;
 
         putText(img_bgr, std::to_string(fps[i].id), cornersB[i], cv::FONT_HERSHEY_COMPLEX, 0.4, cv::Scalar(0, 0, 255), 1, 8, 0);
-        fps[i].u = cornersB[i].x;
-        fps[i].v = cornersB[i].y;
 
 //        std::stringstream text;
 //        text << "(" << std::setprecision(3) << cornersB[i].x << ", " << std::setprecision(3) << cornersB[i].y << ")";
 //        putText(img_bgr, text.str(), cornersB[i], cv::FONT_HERSHEY_COMPLEX, 0.3, cv::Scalar(0, 255, 0), 1, 8, 0);
-    }
-
-    if (track_amount > 1)
-    {
-        std::cout << std::endl << "ID: pixel_u, pixel_v" << std::endl;
-        for (int i=0; i < MAX_CORNERS; i++)
-        {
-            for (int j=0; j < track_amount; j++)
-                if (track_num[j] == fps[i].id) std::cout << track_num[j] << ": " << fps[i].u << ", " << fps[i].v << std::endl;
-        }
-        std::cout << "================" << std::endl;
     }
 
     cv::imshow("source", img_bgr);
@@ -118,17 +89,26 @@ void opti_track_LK(const cv::Mat &_img)
 
 int main(int argc, char **argv)
 {
-    track_amount = argc - 1;
-    if (track_amount > 0)
+    if (argc == 1 || argc == 5)
     {
-        for (int i=0; i < track_amount; i++)
-            track_num.push_back(atoi(argv[i+1]));
+        if (argc == 5)
+        {
+            ROI = true;
+            for (int i=0; i < argc - 1; i++)
+                rois[i] = atoi(argv[i+1]);
+        }
+    }
+    else
+    {
+        cout << "Number of arguments fails to be used." << endl;
+        return -1;
     }
 
+    // optical flow
     for (int i=0; i < img_amount; i++)
     {
         char img_loca[100];
-        sprintf(img_loca, "/home/zhehui/deformation_ws/data/%s/%s.tif", dataset, imgs[i]);
+        sprintf(img_loca, "%s/%03d.tif", dataset.c_str(), i+1);
         Mat cv_img = imread(img_loca, CV_LOAD_IMAGE_GRAYSCALE);
         if (!cv_img.data)
         {
@@ -138,8 +118,33 @@ int main(int argc, char **argv)
         else
             std::cout << "Read image: " << img_loca << std::endl;
 
-        opti_track_LK(cv_img);
+
+        opti_track_LK(cv_img, i);
     }
+
+    // save in spreadsheet
+    ofstream ofile;
+    ofile.open (save_path, ios::trunc);
+    if (!ofile) cout << "Couldn't open the file to save.";
+
+    for (int i = 0; i < MAX_CORNERS; ++i)
+    {
+        if (ROI)
+            if (fps[i].u[0] < rois[0] || fps[i].u[0] > rois[1] || fps[i].v[0] < rois[2] || fps[i].v[0] > rois[3])
+                continue;
+
+        ofile << fps[i].id << ",";
+        for (int j=0; j < img_amount; j++)
+        {
+            if (ROI)
+                if (fps[i].u[j] < rois[0] || fps[i].u[j] > rois[1] || fps[i].v[j] < rois[2] || fps[i].v[j] > rois[3])
+                    continue;
+            ofile << fps[i].u[j] << "," << fps[i].v[j] << ",";
+        }
+        ofile << "\n";
+    }
+
+    ofile.close();
 
     return 0;
 }
