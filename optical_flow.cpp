@@ -16,7 +16,7 @@ int rois[4] = {0}; // lower_u, upper_u, lower_v, upper_v
 
 // output results
 bool save_result = true;
-string save_path = "results";
+string save_path = "results.csv";
 
 // feature tracker
 struct Feature_Point{
