@@ -14,16 +14,16 @@ This code aimed to track feature points in the images by the method of optical f
 * output path to save results: `save_path = [path to save]`
 
 ## Build and Run
-* Build: ``g++ -o optical_flow optical_flow.cpp `pkg-config --cflags --libs opencv```
+* Build: `` g++ -o optical_flow optical_flow.cpp `pkg-config --cflags --libs opencv` ``
 * Run: `./optical_flow`
 
 ## Region of Interist
 * Focus the feature points in ROI.
-`./optical_flow [lower_u] [upper_u] [lower_v] [upper_v]`
+  `./optical_flow [lower_u] [upper_u] [lower_v] [upper_v]`
 
 exp:
 * Focus u_pixel from 0 ~ 700 and v_pixel from 0 ~ 514.
-`./optical_flow 0 700 0 514`
+  `./optical_flow 0 700 0 514`
 
 ## Results
 * The first column is the number of feature point.
