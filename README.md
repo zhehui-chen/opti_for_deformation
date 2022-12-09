@@ -14,7 +14,7 @@ This code aimed to track feature points in the images by the method of optical f
 * output path to save results: `save_path = [path to save]`
 
 ## Build and Run
-* Build: `g++ -o optical_flow optical_flow.cpp `pkg-config --cflags --libs opencv``
+* Build: `g++ -o optical_flow optical_flow.cpp &grave pkg-config --cflags --libs opencv &grave`
 * Run: `./optical_flow`
 
 ## Region of Interist
